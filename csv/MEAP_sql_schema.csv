@@ -1,0 +1,18 @@
+Column Name,Type,Description
+SchoolYear,varchar(20),School Year
+ISDCode,varchar(2),Intermediate School District Code Number
+ISDName,varchar(90),Name of Intermediate School District
+DistrictCode,varchar(5),School District Code Number
+DistrictName,varchar(90),Name of School District
+BuildingCode,varchar(5),School Building Code Number
+BuildingName,varchar(90),Name of School Building
+Grade,int,Numeric value of the grade level
+SubjectName,varchar(14),Subject assessed
+Subgroup,varchar(90),Student Subgroup
+NumberTested,int,Number of students participating in the assessment
+Level1Proficient,"decmal(4,2)",Percent of students scoring Level 1 (Advanced)
+Level2Proficient,"decmal(4,2)",Percent of students scoring Level 2 (Proficient)
+Level3Proficient,"decmal(4,2)",Percent of students scoring Level 3 (Partially Proficient)
+Level4Proficient,"decmal(4,2)",Percent of students scoring Level 3 (Not Proficient)
+PercentProficient,"decmal(4,2)",Percent of students proficient (Levels 1 and 2)
+AverageScaledScore(rounded),int,Average Scale Score
