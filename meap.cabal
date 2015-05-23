@@ -60,6 +60,7 @@ executable MEAP
   build-depends:
       base >=4.8 && <4.9
     , cassava
+    , optparse-applicative
   
   -- Directories containing source files.
   hs-source-dirs:      scripts
