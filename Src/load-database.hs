@@ -18,6 +18,8 @@ import Database.Persist.Sqlite (runSqlite)
 
 import qualified Options.Applicative as Opt
 
+-- options parsing
+
 data ParseType = MEAP | Staff deriving (Read, Show)
 data ParsedOptions = ParsedOptions { parseType :: ParseType, fileName :: String }
 
@@ -26,61 +28,51 @@ getFileName = ParsedOptions <$>
   Opt.option Opt.auto (Opt.short 't' <> Opt.long "type" <> Opt.metavar "type" <> Opt.value MEAP)
   <*> Opt.argument Opt.str (Opt.metavar "file")
 
-getDistrict :: Mcsv.District -> Msql.District
-getDistrict m = Msql.District (Mcsv.id m) (Mcsv.name m)
+-- csv to sql conversions
 
-getDistrictFromMEAP :: Mcsv.MEAPScore -> Msql.District
-getDistrictFromMEAP m = getDistrict $ Mcsv.meapDistrict m
+csvDistrictToSqlDistrict :: Mcsv.District -> Msql.District
+csvDistrictToSqlDistrict m = Msql.District (Mcsv.id m) (Mcsv.name m)
 
-getDistrictFromStaff :: Mcsv.SchoolStaff -> Msql.District
-getDistrictFromStaff m = getDistrict $ Mcsv.staffDistrict m
+csvScoreToSqlDistrict :: Mcsv.MEAPScore -> Msql.District
+csvScoreToSqlDistrict m = csvDistrictToSqlDistrict $ Mcsv.meapDistrict m
 
-runInsert v insertFunc = runSqlite "meap.db" $ do
-  runMigrationSilent migrateTables
-  V.forM_ v insertFunc
+csvStaffToSqlDistrict :: Mcsv.SchoolStaff -> Msql.District
+csvStaffToSqlDistrict m = csvDistrictToSqlDistrict $ Mcsv.staffDistrict m
 
-getScore :: Mcsv.MEAPScore -> Msql.DistrictId -> Msql.MEAPScore
-getScore m d = Msql.MEAPScore d (Mcsv.grade m) (fromJust $ Mcsv.subject m)
-  (fromJust $ Mcsv.subgroup m) (Mcsv.numTested m) (Mcsv.level1Proficient m)
-  (Mcsv.level2Proficient m) (Mcsv.level3Proficient m) (Mcsv.level4Proficient m)
-  (Mcsv.totalProficient m)
+csvScoreToSqlScore :: Mcsv.MEAPScore -> Msql.DistrictId -> Maybe Msql.MEAPScore
+csvScoreToSqlScore
+  (Mcsv.MEAPScore _ grade (Just subject) (Just subgroup) numTested l1 l2 l3 l4 total) d =
+    Just $ Msql.MEAPScore d grade subject subgroup numTested l1 l2 l3 l4 total
+csvScoreToSqlScore _ _ = Nothing
 
-insertScore :: (MonadIO m, backend ~ PersistEntityBackend Msql.MEAPScore) => Maybe Mcsv.MEAPScore -> ReaderT backend m ()
-insertScore (Just m)
-  | Mcsv.isValidMeap m = do
-    let sqlDistrict = getDistrictFromMEAP m
-    -- check if district is already in database
-    dids <- liftM (take 1) $ select $ from $ \d -> do
-      where_ (d ^. Msql.DistrictSid ==. val (Msql.districtSid sqlDistrict))
-      return d
-    case dids of
-      -- use found district if it exists
-      [foundDistrict] -> insert_ $ getScore m $ entityKey foundDistrict
-      -- insert district if not
-      [] -> do
-        districtKey <- insert sqlDistrict
-        insert_ $ getScore m districtKey
-  | otherwise = return ()
-insertScore Nothing = return ()
-
-getStaff :: Mcsv.SchoolStaff -> Msql.DistrictId -> Msql.SchoolStaff
-getStaff m d = Msql.SchoolStaff d (Mcsv.teachers m) (Mcsv.librarians m)
+csvStaffToSqlStaff :: Mcsv.SchoolStaff -> Msql.DistrictId -> Maybe Msql.SchoolStaff
+csvStaffToSqlStaff m d = Just $ Msql.SchoolStaff d (Mcsv.teachers m) (Mcsv.librarians m)
   (Mcsv.librarySupport m)
 
-insertSingleStaff (Just m) = do
-  let sqlDistrict = getDistrictFromStaff m
-  -- check if district is already in database
+-- database insertion
+
+insertCsvToSql csvToSqlDistrict csvToSql (Just m) = do
+  let sqlDistrict = csvToSqlDistrict m
   dids <- liftM (take 1) $ select $ from $ \d -> do
     where_ (d ^. Msql.DistrictSid ==. val (Msql.districtSid sqlDistrict))
     return d
   case dids of
     -- use found district if it exists
-    [foundDistrict] -> insert_ $ getStaff m $ entityKey foundDistrict
+    [foundDistrict] -> maybeInsert $ csvToSql m $ entityKey foundDistrict
     -- insert district if not
     [] -> do
       districtKey <- insert sqlDistrict
-      insert_ $ getStaff m districtKey
-insertSingleStaff Nothing = return ()
+      maybeInsert $ csvToSql m districtKey
+  where
+    maybeInsert (Just val) = insert_ val
+    maybeInsert Nothing = return ()
+insertCsvToSql _ _ _ = return ()
+
+runInsert v csvDistrictToSqlDistrict csvValToSql = runSqlite "meap.db" $ do
+  runMigrationSilent migrateTables
+  V.forM_ v $ insertCsvToSql csvDistrictToSqlDistrict csvValToSql
+
+-- main
 
 main :: IO ()
 main = do
@@ -89,9 +81,9 @@ main = do
   case parseType opts of
     MEAP -> case Csv.decodeByName csvData of
       Left err -> putStrLn err
-      Right (_, v :: (V.Vector (Maybe Mcsv.MEAPScore))) -> runInsert v insertScore
+      Right (_, v :: (V.Vector (Maybe Mcsv.MEAPScore))) -> runInsert v csvScoreToSqlDistrict csvScoreToSqlScore
     Staff -> case Csv.decodeByName csvData of
       Left err -> putStrLn err
-      Right (_, v :: (V.Vector (Maybe Mcsv.SchoolStaff))) -> runInsert v insertSingleStaff
+      Right (_, v :: (V.Vector (Maybe Mcsv.SchoolStaff))) -> runInsert v csvStaffToSqlDistrict csvStaffToSqlStaff
   where
     rawopts = Opt.info getFileName Opt.fullDesc
