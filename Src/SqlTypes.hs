@@ -10,6 +10,7 @@ share [mkPersist sqlSettings, mkMigrate "migrateTables"] [persistLowerCase|
 District
   sid               Int
   name              Text
+  Primary sid
 MEAPScore
   meapDistrict      DistrictId
   grade             Int
