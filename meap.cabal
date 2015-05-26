@@ -62,6 +62,7 @@ executable load-database
     , bytestring
     , cassava
     , esqueleto
+    , monad-control
     , mtl
     , optparse-applicative
     , persistent

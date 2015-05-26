@@ -9,6 +9,7 @@ import Control.Monad.Reader
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv as Csv
 import Data.Maybe
+import Control.Monad.Trans.Control
 import Data.Monoid
 import qualified Data.Vector as V
 
@@ -51,6 +52,11 @@ csvStaffToSqlStaff m d = Just $ Msql.SchoolStaff d (Mcsv.teachers m) (Mcsv.libra
 
 -- database insertion
 
+insertCsvToSql ::
+  (PersistEntity val, MonadIO m, PersistStore (PersistEntityBackend val),
+    PersistEntityBackend val ~ SqlBackend) =>
+  (t -> Msql.District) -> (t -> Key Msql.District -> Maybe val) -> Maybe t
+    -> ReaderT SqlBackend m ()
 insertCsvToSql csvToSqlDistrict csvToSql (Just m) = do
   let sqlDistrict = csvToSqlDistrict m
   dids <- liftM (take 1) $ select $ from $ \d -> do
@@ -68,6 +74,11 @@ insertCsvToSql csvToSqlDistrict csvToSql (Just m) = do
     maybeInsert Nothing = return ()
 insertCsvToSql _ _ _ = return ()
 
+runInsert ::
+  (PersistEntity val, MonadIO m, PersistStore (PersistEntityBackend val),
+    MonadBaseControl IO m, PersistEntityBackend val ~ SqlBackend) =>
+  V.Vector (Maybe t) -> (t -> Msql.District)
+    -> (t -> Key Msql.District -> Maybe val) -> m ()
 runInsert v csvDistrictToSqlDistrict csvValToSql = runSqlite "meap.db" $ do
   runMigrationSilent migrateTables
   V.forM_ v $ insertCsvToSql csvDistrictToSqlDistrict csvValToSql
