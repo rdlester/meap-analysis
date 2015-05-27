@@ -8,13 +8,11 @@ import Control.Monad.Reader
 
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv as Csv
-import Data.Maybe
 import Control.Monad.Trans.Control
 import Data.Monoid
 import qualified Data.Vector as V
 
 import Database.Esqueleto
-import Database.Persist.Sql (runMigrationSilent)
 import Database.Persist.Sqlite (runSqlite)
 
 import qualified Options.Applicative as Opt
@@ -40,22 +38,20 @@ csvScoreToSqlDistrict m = csvDistrictToSqlDistrict $ Mcsv.meapDistrict m
 csvStaffToSqlDistrict :: Mcsv.SchoolStaff -> Msql.District
 csvStaffToSqlDistrict m = csvDistrictToSqlDistrict $ Mcsv.staffDistrict m
 
-csvScoreToSqlScore :: Mcsv.MEAPScore -> Msql.DistrictId -> Maybe Msql.MEAPScore
+csvScoreToSqlScore :: Mcsv.MEAPScore -> Msql.DistrictId -> Msql.MEAPScore
 csvScoreToSqlScore
-  (Mcsv.MEAPScore _ grade (Just subject) (Just subgroup) numTested l1 l2 l3 l4 total) d =
-    Just $ Msql.MEAPScore d grade subject subgroup numTested l1 l2 l3 l4 total
-csvScoreToSqlScore _ _ = Nothing
+  (Mcsv.MEAPScore _ g subj subgrp num l1 l2 l3 l4 total) d =
+    Msql.MEAPScore d g subj subgrp num l1 l2 l3 l4 total
 
-csvStaffToSqlStaff :: Mcsv.SchoolStaff -> Msql.DistrictId -> Maybe Msql.SchoolStaff
-csvStaffToSqlStaff m d = Just $ Msql.SchoolStaff d (Mcsv.teachers m) (Mcsv.librarians m)
-  (Mcsv.librarySupport m)
+csvStaffToSqlStaff :: Mcsv.SchoolStaff -> Msql.DistrictId -> Msql.SchoolStaff
+csvStaffToSqlStaff (Mcsv.SchoolStaff _ t l ls) d = Msql.SchoolStaff d t l ls
 
 -- database insertion
 
 insertCsvToSql ::
   (PersistEntity val, MonadIO m, PersistStore (PersistEntityBackend val),
     PersistEntityBackend val ~ SqlBackend) =>
-  (t -> Msql.District) -> (t -> Key Msql.District -> Maybe val) -> Maybe t
+  (t -> Msql.District) -> (t -> Key Msql.District -> val) -> Maybe t
     -> ReaderT SqlBackend m ()
 insertCsvToSql csvToSqlDistrict csvToSql (Just m) = do
   let sqlDistrict = csvToSqlDistrict m
@@ -64,24 +60,21 @@ insertCsvToSql csvToSqlDistrict csvToSql (Just m) = do
     return d
   case dids of
     -- use found district if it exists
-    [foundDistrict] -> maybeInsert $ csvToSql m $ entityKey foundDistrict
+    (foundDistrict : _) -> insert_ $ csvToSql m $ entityKey foundDistrict
     -- insert district if not
     [] -> do
       districtKey <- insert sqlDistrict
-      maybeInsert $ csvToSql m districtKey
-  where
-    maybeInsert (Just val) = insert_ val
-    maybeInsert Nothing = return ()
+      insert_ $ csvToSql m districtKey
 insertCsvToSql _ _ _ = return ()
 
 runInsert ::
   (PersistEntity val, MonadIO m, PersistStore (PersistEntityBackend val),
     MonadBaseControl IO m, PersistEntityBackend val ~ SqlBackend) =>
   V.Vector (Maybe t) -> (t -> Msql.District)
-    -> (t -> Key Msql.District -> Maybe val) -> m ()
-runInsert v csvDistrictToSqlDistrict csvValToSql = runSqlite "meap.db" $ do
-  runMigrationSilent migrateTables
-  V.forM_ v $ insertCsvToSql csvDistrictToSqlDistrict csvValToSql
+    -> (t -> Key Msql.District -> val) -> m ()
+runInsert v csvDistrictToSql csvValToSql = runSqlite "meap.db" $ do
+  _ <- runMigrationSilent migrateTables
+  V.forM_ v $ insertCsvToSql csvDistrictToSql csvValToSql
 
 -- main
 

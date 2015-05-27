@@ -4,7 +4,7 @@ import qualified CsvTypes as Mcsv
 
 import Data.Text
 import Database.Persist.TH (mkPersist, mkMigrate, persistLowerCase,
-                           share, sqlSettings, derivePersistField)
+                           share, sqlSettings)
 
 share [mkPersist sqlSettings, mkMigrate "migrateTables"] [persistLowerCase|
 District
