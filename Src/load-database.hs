@@ -3,6 +3,7 @@ module Main where
 import CsvTypes as Mcsv
 import SqlTypes as Msql
 
+import Control.Applicative
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 

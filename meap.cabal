@@ -15,6 +15,8 @@ version:             0.1.0.0
 -- A short (one-line) description of the package.
 synopsis:            MEAP analysis
 
+description: Scripts for analyzing Michigan standardized testing data.
+
 -- A longer description of the package.
 -- description:         
 
@@ -45,6 +47,10 @@ build-type:          Simple
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
 
+source-repository head
+  type: git
+  location: https://github.com/rdlester/meap-analysis
+
 executable load-database
   -- .hs or .lhs file containing the Main module.
   main-is:             load-database.hs
@@ -54,11 +60,11 @@ executable load-database
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
 
-  hs-source-dirs: Src
+  hs-source-dirs: src
   
   -- Other library packages from which modules are imported.
   build-depends:
-      base >=4.8 && <4.9
+      base >=4.7 && <4.9
     , bytestring
     , cassava
     , esqueleto
