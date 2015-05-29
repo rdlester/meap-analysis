@@ -67,6 +67,7 @@ executable load-database
       base >=4.7 && <4.9
     , bytestring
     , cassava
+    , containers
     , esqueleto
     , monad-control
     , mtl

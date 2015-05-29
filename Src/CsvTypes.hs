@@ -3,6 +3,7 @@ module CsvTypes where
 import Control.Applicative
 import qualified Data.Csv as Csv
 import Data.Csv ((.:))
+import Data.Either
 import Data.Text
 
 import Database.Persist.TH (derivePersistField)
@@ -56,6 +57,7 @@ instance Csv.FromField Proficiency where
 
 data MEAPScore = MEAPScore
   { meapDistrict :: District
+  , year :: Text
   , grade :: Int
   , subject :: Subject
   , subgroup :: Subgroup
@@ -65,22 +67,35 @@ data MEAPScore = MEAPScore
   , level3Proficient :: Double
   , level4Proficient :: Double
   , totalProficient :: Double
+  , avgScore :: Double
+  , stdDev :: Double
   }
 
+instance Csv.FromNamedRecord MEAPScore where
+  parseNamedRecord r =
+    -- Only parse rows covering entire districts.
+    if isLeft $ Csv.runParser ((r .: "BuildingCode") :: Csv.Parser Int)
+      then
+        MEAPScore <$>
+          (District <$> r .: "DistrictCode"
+            <*> r .: "DistrictName")
+          <*> r .: "SchoolYear"
+          <*> r .: "Grade"
+          <*> r .: "Subject Name"
+          <*> r .: "Subgroup"
+          <*> r .: "Number Tested"
+          <*> (proficiency <$> r .: "Level 1 Proficient")
+          <*> (proficiency <$> r .: "Level 2 Proficient")
+          <*> (proficiency <$> r .: "Level 3 Proficient")
+          <*> (proficiency <$> r .: "Level 4 Proficient")
+          <*> (proficiency <$> r .: "Percent Proficient")
+          <*> r .: "Average Scaled Score"
+          <*> r .: "Standard Deviation"
+      else
+        Control.Applicative.empty
+
 instance Csv.FromNamedRecord (Maybe MEAPScore) where
-  parseNamedRecord r = optional $
-    MEAPScore <$>
-      (District <$> r .: "DistrictCode"
-        <*> r .: "DistrictName")
-      <*> r .: "Grade"
-      <*> r .: "Subject Name"
-      <*> r .: "Subgroup"
-      <*> r .: "Number Tested"
-      <*> (proficiency <$> r .: "Level 1 Proficient")
-      <*> (proficiency <$> r .: "Level 2 Proficient")
-      <*> (proficiency <$> r .: "Level 3 Proficient")
-      <*> (proficiency <$> r .: "Level 4 Proficient")
-      <*> (proficiency <$> r .: "Percent Proficient")
+  parseNamedRecord r = optional $ Csv.parseNamedRecord r
 
 data SchoolStaff = SchoolStaff
   { staffDistrict :: District
@@ -89,11 +104,14 @@ data SchoolStaff = SchoolStaff
   , librarySupport :: Double
   }
 
-instance Csv.FromNamedRecord (Maybe SchoolStaff) where
-  parseNamedRecord r = optional $
+instance Csv.FromNamedRecord SchoolStaff where
+  parseNamedRecord r =
     SchoolStaff <$>
       (District <$> r .: "DCODE"
         <*> r .: "DNAME")
       <*> (r.: "TEACHER" <|> pure 0)
       <*> (r .: "LIB_SPEC" <|> pure 0)
       <*> (r .: "LIB_SUPP" <|> pure 0)
+
+instance Csv.FromNamedRecord (Maybe SchoolStaff) where
+  parseNamedRecord r = optional $ Csv.parseNamedRecord r

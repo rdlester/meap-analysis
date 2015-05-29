@@ -13,6 +13,7 @@ District
   Primary sid
 MEAPScore
   meapDistrict      DistrictId
+  year              Text
   grade             Int
   subject           Mcsv.Subject
   subgroup          Mcsv.Subgroup
@@ -22,6 +23,8 @@ MEAPScore
   level3Proficient  Double
   level4Proficient  Double
   totalProficient   Double
+  avgScore          Double
+  stdDev            Double
   deriving Show
 SchoolStaff
   staffDistrict     DistrictId
