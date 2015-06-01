@@ -2,6 +2,7 @@
 
 import csv
 from enum import Enum
+import functools
 import sqlite3
 
 class RowType(Enum):
@@ -9,6 +10,11 @@ class RowType(Enum):
   staff = 2
 
 class District(object):
+  @staticmethod
+  def createTable(c):
+    c.execute('''CREATE TABLE IF NOT EXISTS district
+        (id INTEGER, name TEXT, PRIMARY KEY(id ASC));''')
+
   def __init__(self):
     self.hasData = False
 
@@ -32,11 +38,21 @@ class District(object):
 class Score(object):
   rowid = 1
 
+  @staticmethod
+  def createTable(c):
+    c.execute('''CREATE TABLE IF NOT EXISTS meap_score
+        (district_id INTEGER NOT NULL, grade INTEGER NOT NULL, subject VARCHAR NOT NULL,
+        subgroup VARCHAR NOT NULL, num_tested INTEGER NOT NULL, level1_proficient REAL NOT NULL,
+        level2_proficient REAL NOT NULL, level3_proficient REAL NOT NULL, level4_proficient REAL NOT NULL,
+        total_proficient REAL NOT NULL, id INTEGER, PRIMARY KEY(id ASC),
+        FOREIGN KEY (district_id) REFERENCES district(id));''')
+
   def __init__(self):
     self.hasData = False
     return
 
-  def verifyCsvRow(self, csvRow):
+  @staticmethod
+  def verifyCsvRow(csvRow):
     # must have a district.
     did = csvRow[3]
     if did == '':
@@ -47,9 +63,15 @@ class Score(object):
     if bid != '':
       return False
 
+    # enough students for data to be reported
+    numTested = csvRow[10]
+    if numTested == '< 10':
+      return False
+
     return True
 
-  def parseProficiencyScore(self, scoreString):
+  @staticmethod
+  def parseProficiencyScore(scoreString):
     if scoreString == '':
       return 0
     elif scoreString == '< 5%':
@@ -60,20 +82,19 @@ class Score(object):
       return float(scoreString)
 
   def parseCsvRow(self, csvRow):
-    if self.verifyCsvRow(csvRow):
+    if Score.verifyCsvRow(csvRow):
       self.did = int(csvRow[3]) if csvRow[3] != '' else 0
       self.grade = int(csvRow[7]) if csvRow[7] != '' else 0
       self.subject = csvRow[8]
       self.subgroup = csvRow[9]
       self.numTested = int(csvRow[10]) if csvRow[10] != '' else 0
-      self.l1 = self.parseProficiencyScore(csvRow[11])
-      self.l2 = self.parseProficiencyScore(csvRow[12])
-      self.l3 = self.parseProficiencyScore(csvRow[13])
-      self.l4 = self.parseProficiencyScore(csvRow[14])
-      self.total = self.parseProficiencyScore(csvRow[15])
+      self.l1 = Score.parseProficiencyScore(csvRow[11])
+      self.l2 = Score.parseProficiencyScore(csvRow[12])
+      self.l3 = Score.parseProficiencyScore(csvRow[13])
+      self.l4 = Score.parseProficiencyScore(csvRow[14])
+      self.total = Score.parseProficiencyScore(csvRow[15])
       self.rowid = Score.rowid
       Score.rowid += 1
-
       self.hasData = True
 
   def insertToSQL(self, c):
@@ -87,6 +108,13 @@ class Score(object):
 class Staff(object):
   rowid = 1
 
+  @staticmethod
+  def createTable(c):
+    c.execute('''CREATE TABLE IF NOT EXISTS school_staff
+        (district_id INTEGER NOT NULL, teachers REAL NOT NULL, librarians REAL NOT NULL,
+        library_support REAL NOT NULL, id INTEGER, PRIMARY KEY(id ASC),
+        FOREIGN KEY (district_id) REFERENCES district(id));''')
+
   def __init__(self):
     self.hasData = False
 
@@ -97,7 +125,6 @@ class Staff(object):
     self.library_support = float(csvRow[7]) if csvRow[7] != '' else 0
     self.rowid = Staff.rowid
     Staff.rowid += 1
-
     self.hasData = True
 
   def insertToSQL(self, c):
@@ -111,18 +138,9 @@ def makeDatabase():
   c = conn.cursor()
 
   # Make tables
-  c.execute('''CREATE TABLE district
-      (id INTEGER, name TEXT, PRIMARY KEY(id ASC));''')
-  c.execute('''CREATE TABLE meap_score
-      (district_id INTEGER NOT NULL, grade INTEGER NOT NULL, subject VARCHAR NOT NULL,
-      subgroup VARCHAR NOT NULL, num_tested INTEGER NOT NULL, level1_proficient REAL NOT NULL,
-      level2_proficient REAL NOT NULL, level3_proficient REAL NOT NULL, level4_proficient REAL NOT NULL,
-      total_proficient REAL NOT NULL, id INTEGER, PRIMARY KEY(id ASC),
-      FOREIGN KEY (district_id) REFERENCES district(id));''')
-  c.execute('''CREATE TABLE school_staff
-      (district_id INTEGER NOT NULL, teachers REAL NOT NULL, librarians REAL NOT NULL,
-      library_support REAL NOT NULL, id INTEGER, PRIMARY KEY(id ASC),
-      FOREIGN KEY (district_id) REFERENCES district(id));''')
+  District.createTable(c)
+  Score.createTable(c)
+  Staff.createTable(c)
 
   with open('csv/12-13.csv') as f:
     freader = csv.reader(f)
