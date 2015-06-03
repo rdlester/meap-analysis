@@ -44,8 +44,8 @@ class Score(object):
         (district_id INTEGER NOT NULL, grade INTEGER NOT NULL, subject VARCHAR NOT NULL,
         subgroup VARCHAR NOT NULL, num_tested INTEGER NOT NULL, level1_proficient REAL NOT NULL,
         level2_proficient REAL NOT NULL, level3_proficient REAL NOT NULL, level4_proficient REAL NOT NULL,
-        total_proficient REAL NOT NULL, id INTEGER, PRIMARY KEY(id ASC),
-        FOREIGN KEY (district_id) REFERENCES district(id));''')
+        total_proficient REAL NOT NULL, avg_score REAL NOT NULL, std_dev REAL NOT NULL,
+        id INTEGER, PRIMARY KEY(id ASC), FOREIGN KEY (district_id) REFERENCES district(id));''')
 
   def __init__(self):
     self.hasData = False
@@ -93,6 +93,8 @@ class Score(object):
       self.l3 = Score.parseProficiencyScore(csvRow[13])
       self.l4 = Score.parseProficiencyScore(csvRow[14])
       self.total = Score.parseProficiencyScore(csvRow[15])
+      self.avgScore = float(csvRow[16])
+      self.stdDev = float(csvRow[17])
       self.rowid = Score.rowid
       Score.rowid += 1
       self.hasData = True
@@ -100,10 +102,10 @@ class Score(object):
   def insertToSQL(self, c):
     if self.hasData:
       c.execute('''INSERT INTO meap_score VALUES
-          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);''',
+          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);''',
           (self.did, self.grade, self.subject, self.subgroup,
               self.numTested, self.l1, self.l2, self.l3,
-              self.l4, self.total, self.rowid))
+              self.l4, self.total, self.avgScore, self.stdDev, self.rowid))
 
 class Staff(object):
   rowid = 1
