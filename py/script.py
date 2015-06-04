@@ -135,6 +135,15 @@ class Staff(object):
           (?, ?, ?, ?, ?);''',
           (self.did, self.teachers, self.librarians, self.library_support, self.rowid))
 
+class Data(object):
+  def __init__(self, c):
+    c.execute ('''SELECT meap_score.avg_score,
+        school_staff.teachers, school_staff.librarians, school_staff.library_support
+        FROM meap_score INNER JOIN school_staff
+        ON meap_score.district_id=school_staff.district_id
+        WHERE meap_score.subgroup="All Students" AND meap_score.grade=3;''')
+    self.data = c.fetchall()
+
 def makeDatabase():
   conn = sqlite3.connect('py-meap.db')
   c = conn.cursor()
